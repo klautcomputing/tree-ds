@@ -565,7 +565,7 @@ where
     ///
     /// * `node_id` - The id of the node to get the subsection from.
     /// * `generations` - The number of descendants to include in the subsection. If `None`, all the
-    /// descendants of the node are included in the subsection.
+    ///    descendants of the node are included in the subsection.
     ///
     /// # Returns
     ///
@@ -598,10 +598,10 @@ where
         if let Some(generations) = generations {
             let children = node.get_children_ids();
             for current_generation in 0..generations {
-                for child in children.clone() {
+                for child in &children {
                     subsection.append(
                         &mut self
-                            .get_subtree(&child, Some(current_generation))?
+                            .get_subtree(child, Some(current_generation))?
                             .get_nodes()
                             .clone(),
                     );
@@ -658,26 +658,21 @@ where
         let node = self
             .get_node_by_id(node_id)
             .ok_or(NodeNotFound(node_id.to_string()))?;
-        return if let Some(parent_id) = node.get_parent_id() {
+        if let Some(parent_id) = node.get_parent_id() {
             let parent = self
                 .get_node_by_id(&parent_id)
                 .ok_or(NodeNotFound(parent_id.to_string()))?;
-            if inclusive {
-                Ok(parent.get_children_ids().clone())
-            } else {
-                Ok(parent
-                    .get_children_ids()
-                    .iter()
-                    .filter(|x| *x != node_id)
-                    .cloned()
-                    .collect())
+            let mut children_ids = parent.get_children_ids();
+            if !inclusive {
+                children_ids.retain(|x| x != node_id);
             }
-        } else if inclusive {
+            return Ok(children_ids);
+        }
+        if inclusive {
             // We need to clone this since Q does not implement Copy.
-            Ok(vec![node_id.clone()])
-        } else {
-            Ok(vec![])
-        };
+            return Ok(vec![node_id.clone()]);
+        }
+        Ok(vec![])
     }
 
     /// Add a subsection to the tree.
@@ -721,7 +716,7 @@ where
         let root_node = subtree
             .get_root_node()
             .ok_or(InvalidOperation(String::from("Subtree has no root node.")))?;
-        node.add_child(root_node.clone());
+        node.add_child(root_node);
         self.nodes.append(&mut subtree_nodes.clone());
         Ok(())
     }
@@ -765,12 +760,12 @@ where
         match &order {
             TraversalStrategy::PreOrder => {
                 nodes.push(node_id.clone());
-                for child_id in node.get_children_ids().iter() {
+                for child_id in &node.get_children_ids() {
                     nodes.append(&mut self.traverse(order, child_id)?);
                 }
             }
             TraversalStrategy::PostOrder => {
-                for child_id in node.get_children_ids().iter() {
+                for child_id in &node.get_children_ids() {
                     nodes.append(&mut self.traverse(order, child_id)?);
                 }
                 nodes.push(node_id.clone());
@@ -1021,23 +1016,23 @@ mod tests {
         let node_2 = tree.add_node(Node::new(2, Some(3)), Some(&node_1)).unwrap();
         let node_3 = tree.add_node(Node::new(3, Some(6)), Some(&node_2)).unwrap();
         let node_4 = tree.add_node(Node::new(4, Some(5)), Some(&node_2)).unwrap();
-        assert_eq!(tree.get_ancestor_ids(&node_4).unwrap(), vec![2,1]);
-        assert_eq!(tree.get_ancestor_ids(&node_3).unwrap(), vec![2,1]);
+        assert_eq!(tree.get_ancestor_ids(&node_4).unwrap(), vec![2, 1]);
+        assert_eq!(tree.get_ancestor_ids(&node_3).unwrap(), vec![2, 1]);
         assert_eq!(tree.get_ancestor_ids(&node_2).unwrap(), vec![1]);
         assert_eq!(tree.get_ancestor_ids(&node_1).unwrap(), Vec::<i32>::new());
-   }
-  
-   #[should_panic]
-   fn test_tree_get_node_ancestor_ids_no_existent_node() {
+    }
+
+    #[should_panic]
+    fn test_tree_get_node_ancestor_ids_no_existent_node() {
         let tree = Tree::<u32, u32>::new(Some("Sample Tree"));
         tree.get_ancestor_ids(&1).unwrap();
     }
-  
-   #[should_panic]
-   fn test_tree_get_node_depth_no_existent_node() {
+
+    #[should_panic]
+    fn test_tree_get_node_depth_no_existent_node() {
         let tree = Tree::<u32, u32>::new(Some("Sample Tree"));
         tree.get_node_depth(&1).unwrap();
-   }
+    }
 
     #[test]
     fn test_tree_get_height() {
